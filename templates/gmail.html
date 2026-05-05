@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+{% block title %}Gmail — AI Agent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="bi bi-envelope"></i> Gmail Assistant</h1>
+</div>
+
+<div class="category-tabs">
+    <button class="cat-tab active" onclick="switchCategory('INBOX', this)">
+        <i class="bi bi-inbox"></i> Primary
+    </button>
+    <button class="cat-tab" onclick="switchCategory('CATEGORY_SOCIAL', this)">
+        <i class="bi bi-people"></i> Social
+    </button>
+    <button class="cat-tab" onclick="switchCategory('CATEGORY_PROMOTIONS', this)">
+        <i class="bi bi-tag"></i> Promotions
+    </button>
+    <button class="cat-tab" onclick="switchCategory('CATEGORY_UPDATES', this)">
+        <i class="bi bi-bell"></i> Updates
+    </button>
+    <button class="cat-tab" onclick="switchCategory('SPAM', this)">
+        <i class="bi bi-slash-circle"></i> Spam
+    </button>
+</div>
+
+<div class="gmail-layout">
+    <!-- Email List Panel -->
+    <div class="email-list-panel">
+        <div class="panel-toolbar">
+            <input type="text" id="email-search" placeholder="Search emails..." class="search-input">
+            <button class="btn-icon" onclick="loadEmails()"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+        <div id="email-list">
+            <div class="loading-state"><div class="spinner"></div><span>Loading inbox...</span></div>
+        </div>
+    </div>
+    
+    <!-- Email Detail Panel -->
+    <div class="email-detail-panel" id="email-detail">
+        <div class="empty-detail-state">
+            <i class="bi bi-envelope-open"></i>
+            <p>Select an email to read and reply</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let emails = [];
+let selectedEmail = null;
+
+document.addEventListener('DOMContentLoaded', loadEmails);
+
+let currentCategory = 'INBOX';
+
+function switchCategory(category, btn) {
+    currentCategory = category;
+    document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('email-detail').innerHTML = `
+        <div class="empty-detail-state">
+            <i class="bi bi-envelope-open"></i>
+            <p>Select an email to read and reply</p>
+        </div>`;
+    loadEmails();
+}
+
+async function loadEmails() {
+    document.getElementById('email-list').innerHTML =
+        `<div class="loading-state"><div class="spinner"></div></div>`;
+
+    const res = await fetch(`/api/emails/category/${currentCategory}`);
+    const data = await res.json();
+
+    if (!data.success) {
+        document.getElementById('email-list').innerHTML =
+            `<p class="error-state">Error: ${data.error}</p>`;
+        return;
+    }
+
+    emails = data.emails;
+    renderEmailList(emails);
+}
+
+function renderEmailList(list) {
+    const container = document.getElementById('email-list');
+    if (list.length === 0) {
+        container.innerHTML = '<p class="empty-state">Inbox is empty</p>';
+        return;
+    }
+    
+    const repliedIds = JSON.parse(localStorage.getItem('repliedEmails') || '[]');
+
+    container.innerHTML = list.map((e, i) => {
+        const isReplied = repliedIds.includes(e.id);
+        return `
+        <div class="email-list-item" onclick="selectEmail(${i})" id="email-item-${i}">
+            <div class="email-item-header">
+                <div class="email-item-sender">${truncate(getSenderName(e.sender), 22)}</div>
+                ${isReplied ? '<span class="replied-badge">Replied</span>' : ''}
+            </div>
+            <div class="email-item-subject">${truncate(e.subject, 40)}</div>
+            <div class="email-item-snippet">${truncate(e.snippet, 60)}</div>
+        </div>
+    `}).join('');
+}
+
+async function selectEmail(index) {
+    selectedEmail = emails[index];
+    
+    // Highlight selected
+    document.querySelectorAll('.email-list-item').forEach(el => el.classList.remove('selected'));
+    document.getElementById(`email-item-${index}`).classList.add('selected');
+    
+    // Show email detail with loading analysis
+    const detail = document.getElementById('email-detail');
+    detail.innerHTML = `
+        <div class="email-detail-header">
+            <h3>${selectedEmail.subject}</h3>
+            <div class="email-meta">
+                <span><b>From:</b> ${selectedEmail.sender}</span>
+                <span><b>Date:</b> ${selectedEmail.date}</span>
+            </div>
+        </div>
+        <div class="email-body">${selectedEmail.body || selectedEmail.snippet}</div>
+        <div class="ai-analysis-section">
+            <div class="loading-state"><div class="spinner"></div><span>AI analyzing...</span></div>
+        </div>
+        <div class="reply-section">
+            <h4>Generate AI Reply</h4>
+            <textarea id="tone-input" placeholder="Describe tone: e.g. 'Professional CEO-style, concise and authoritative'" rows="2"></textarea>
+            <button class="btn-primary" onclick="generateReply()">
+                <i class="bi bi-magic"></i> Generate Reply
+            </button>
+            <div id="reply-output"></div>
+        </div>
+    `;
+    
+    // Run AI analysis
+    analyzeEmail(selectedEmail);
+}
+
+async function analyzeEmail(email) {
+    const res = await fetch('/api/emails/analyze', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(email)
+    });
+    const data = await res.json();
+    const analysisSection = document.querySelector('.ai-analysis-section');
+    
+    if (data.success) {
+        const a = data.analysis;
+        analysisSection.innerHTML = `
+            <div class="analysis-card">
+                <div class="analysis-badges">
+                    <span class="badge urgency-${a.urgency}">${a.urgency.toUpperCase()}</span>
+                    <span class="badge category-badge">${a.category}</span>
+                    <span class="badge sentiment-badge">${a.sentiment}</span>
+                    ${a.needs_reply ? '<span class="badge needs-reply-badge">Needs Reply</span>' : ''}
+                </div>
+                <div class="analysis-summary"><b>Summary:</b> ${a.summary}</div>
+                ${a.action_items.length > 0 ? `
+                    <div class="action-items">
+                        <b>Action Items:</b>
+                        <ul>${a.action_items.map(i => `<li>${i}</li>`).join('')}</ul>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+}
+
+async function generateReply() {
+    const tone = document.getElementById('tone-input').value || 'Professional and concise';
+    const output = document.getElementById('reply-output');
+    output.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Generating...</span></div>';
+    
+    const res = await fetch('/api/emails/reply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: selectedEmail, tone})
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+        output.innerHTML = `
+            <div class="reply-draft">
+                <textarea id="reply-text" rows="8">${data.reply}</textarea>
+                <div class="reply-actions">
+                    <button class="btn-secondary" onclick="regenerateReply()">
+                        <i class="bi bi-arrow-repeat"></i> Regenerate
+                    </button>
+                    <button class="btn-primary" onclick="sendReply()">
+                        <i class="bi bi-send"></i> Send
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+async function sendReply() {
+    const body = document.getElementById('reply-text').value;
+    const subject = selectedEmail.subject.startsWith('Re:') 
+        ? selectedEmail.subject 
+        : `Re: ${selectedEmail.subject}`;
+    
+    const res = await fetch('/api/emails/send', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            to: selectedEmail.sender,
+            subject,
+            body,
+            thread_id: selectedEmail.thread_id
+        })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+    showToast('Email sent successfully!', 'success');
+    // Mark as replied
+const repliedIds = JSON.parse(localStorage.getItem('repliedEmails') || '[]');
+if (!repliedIds.includes(selectedEmail.id)) {
+    repliedIds.push(selectedEmail.id);
+    localStorage.setItem('repliedEmails', JSON.stringify(repliedIds));
+}
+renderEmailList(emails);
+} else {
+    showToast('Failed to send: ' + data.error, 'error');
+}
+}
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed; bottom: 30px; right: 30px;
+        background: ${type === 'success' ? '#22c55e' : '#ef4444'};
+        color: white; padding: 14px 22px; border-radius: 12px;
+        font-size: 14px; font-weight: 500; z-index: 9999;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        display: flex; align-items: center; gap: 10px;
+        animation: slideIn 0.3s ease;
+    `;
+    toast.innerHTML = `
+        <span>${type === 'success' ? '✓' : '✕'}</span>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3500);
+}
+
+
+function regenerateReply() {
+    generateReply();
+}
+
+function getSenderName(sender) {
+    const match = sender.match(/^([^<]+)/);
+    return match ? match[1].trim() : sender;
+}
+
+function truncate(str, n) {
+    return str && str.length > n ? str.slice(0, n) + '...' : str || '';
+}
+
+// Search filter
+document.getElementById('email-search').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    const filtered = emails.filter(em => 
+        em.subject.toLowerCase().includes(q) || 
+        em.sender.toLowerCase().includes(q)
+    );
+    renderEmailList(filtered);
+});
+</script>
+{% endblock %}

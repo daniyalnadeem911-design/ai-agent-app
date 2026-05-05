@@ -1,0 +1,10 @@
+.env
+client_secret.json
+token.json
+__pycache__/
+*.pyc
+*.db
+.venv/
+instance/
+database/app.db
+flask_session/

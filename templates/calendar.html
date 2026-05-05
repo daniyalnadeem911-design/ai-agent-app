@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}Calendar — AI Agent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="bi bi-calendar3"></i> Calendar Intelligence</h1>
+</div>
+
+<div id="calendar-content">
+    <div class="loading-state"><div class="spinner"></div><span>Fetching events...</span></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', loadEvents);
+
+async function loadEvents() {
+    const res = await fetch('/api/events');
+    const data = await res.json();
+    const container = document.getElementById('calendar-content');
+    
+    if (!data.success) {
+        container.innerHTML = `<p class="error-state">Failed to load: ${data.error}</p>`;
+        return;
+    }
+    
+    if (data.events.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-calendar-x"></i><p>No upcoming events in the next 7 days</p></div>';
+        return;
+    }
+    
+    container.innerHTML = `
+        <div class="events-grid">
+            ${data.events.map((e, i) => renderEventCard(e, i)).join('')}
+        </div>
+    `;
+}
+
+function renderEventCard(event, index) {
+    const date = new Date(event.start);
+    const formattedDate = isNaN(date) ? event.start : date.toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    
+    return `
+        <div class="event-card" id="event-card-${index}">
+            <div class="event-card-header">
+                <h3 class="event-card-title">${event.title}</h3>
+                <div class="event-card-time">${formattedDate}</div>
+            </div>
+            
+            ${event.location ? `<div class="event-location"><i class="bi bi-geo-alt"></i> ${event.location}</div>` : ''}
+            ${event.meeting_link ? `<a href="${event.meeting_link}" target="_blank" class="meeting-link"><i class="bi bi-camera-video"></i> Join Meeting</a>` : ''}
+            
+            ${event.attendees.length > 0 ? `
+                <div class="event-attendees-list">
+                    <b>Attendees:</b>
+                    ${event.attendees.slice(0,3).map(a => `<span class="attendee-chip">${a.email}</span>`).join('')}
+                    ${event.attendees.length > 3 ? `<span class="attendee-chip">+${event.attendees.length - 3} more</span>` : ''}
+                </div>
+            ` : ''}
+            
+            ${event.description ? `
+                <div class="event-description">
+                    <b>Description:</b> ${event.description.slice(0, 200)}${event.description.length > 200 ? '...' : ''}
+                </div>
+            ` : ''}
+            
+            <div class="event-ai-section" id="ai-prep-${index}">
+                <button class="btn-ai" onclick="loadPreparation(${index})">
+                    <i class="bi bi-magic"></i> Generate Preparation Plan
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function loadPreparation(index) {
+    const events = await (await fetch('/api/events')).json();
+    const event = events.events[index];
+    
+    const section = document.getElementById(`ai-prep-${index}`);
+    section.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>AI preparing...</span></div>';
+    
+    const res = await fetch('/api/events/prepare', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(event)
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+        const p = data.preparation;
+        const priorityColors = {low: '#22c55e', medium: '#f59e0b', high: '#f97316', critical: '#ef4444'};
+        
+        section.innerHTML = `
+            <div class="ai-prep-card">
+                <div class="prep-header">
+                    <span class="prep-type">${p.event_type.toUpperCase()}</span>
+                    <span class="prep-priority" style="color: ${priorityColors[p.priority]}">${p.priority.toUpperCase()} PRIORITY</span>
+                    <span class="prep-time"><i class="bi bi-clock"></i> ${p.time_needed} needed</span>
+                </div>
+                <div class="prep-focus"><i class="bi bi-target"></i> <b>Key Focus:</b> ${p.key_focus}</div>
+                <div class="prep-steps">
+                    <b>Preparation Steps:</b>
+                    <ol>${p.preparation_steps.map(s => `<li>${s}</li>`).join('')}</ol>
+                </div>
+            </div>
+        `;
+    }
+}
+</script>
+{% endblock %}

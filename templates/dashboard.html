@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — AI Agent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <p class="text-muted">Good to have you back, {{ user.name.split()[0] }}</p>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Inbox Summary Card -->
+    <div class="card-widget" id="inbox-summary-card">
+        <div class="widget-header">
+            <i class="bi bi-envelope"></i>
+            <h3>Inbox Briefing</h3>
+            <button class="btn-refresh" onclick="loadInboxSummary()">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+        <div class="widget-body" id="inbox-summary-content">
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <span>Analyzing inbox...</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Today's Events Card -->
+    <div class="card-widget" id="todays-events-card">
+        <div class="widget-header">
+            <i class="bi bi-calendar-day"></i>
+            <h3>Today's Events</h3>
+        </div>
+        <div class="widget-body" id="todays-events-content">
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <span>Loading calendar...</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Urgent Emails Card -->
+    <div class="card-widget" id="urgent-emails-card">
+        <div class="widget-header">
+            <i class="bi bi-exclamation-circle"></i>
+            <h3>Needs Attention</h3>
+        </div>
+        <div class="widget-body" id="urgent-emails-content">
+            <div class="loading-state">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="card-widget">
+        <div class="widget-header">
+            <i class="bi bi-lightning"></i>
+            <h3>Quick Actions</h3>
+        </div>
+        <div class="widget-body">
+            <div class="quick-actions">
+                <a href="/gmail" class="quick-action-btn">
+                    <i class="bi bi-envelope-plus"></i>
+                    <span>Compose Reply</span>
+                </a>
+                <a href="/assistant" class="quick-action-btn">
+                    <i class="bi bi-chat-dots"></i>
+                    <span>Ask Assistant</span>
+                </a>
+                <a href="/calendar" class="quick-action-btn">
+                    <i class="bi bi-calendar-plus"></i>
+                    <span>View Calendar</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadTodaysEvents();
+    loadInboxSummary();
+    loadUrgentEmails();
+});
+
+async function loadTodaysEvents() {
+    const res = await fetch('/api/events/today');
+    const data = await res.json();
+    const container = document.getElementById('todays-events-content');
+    
+    if (!data.success || data.events.length === 0) {
+        container.innerHTML = '<p class="empty-state">No events today. Clear day!</p>';
+        return;
+    }
+    
+    container.innerHTML = data.events.map(e => `
+        <div class="event-mini-card">
+            <div class="event-time">${formatTime(e.start)}</div>
+            <div class="event-title">${e.title}</div>
+            ${e.attendees.length > 0 ? `<div class="event-attendees">${e.attendees.length} attendee(s)</div>` : ''}
+        </div>
+    `).join('');
+}
+
+async function loadInboxSummary() {
+    document.getElementById('inbox-summary-content').innerHTML = `
+        <div class="loading-state"><div class="spinner"></div><span>Analyzing...</span></div>`;
+    
+    const res = await fetch('/api/emails/summary');
+    const data = await res.json();
+    const container = document.getElementById('inbox-summary-content');
+    
+    if (data.success) {
+        container.innerHTML = `<div class="ai-summary-text">${data.summary.replace(/\n/g, '<br>')}</div>`;
+    } else {
+        container.innerHTML = `<p class="error-state">Failed to load summary</p>`;
+    }
+}
+
+async function loadUrgentEmails() {
+    const res = await fetch('/api/emails');
+    const data = await res.json();
+    const container = document.getElementById('urgent-emails-content');
+    
+    if (!data.success) {
+        container.innerHTML = '<p class="error-state">Failed to load</p>';
+        return;
+    }
+    
+    const urgent = data.emails.slice(0, 5);
+    container.innerHTML = urgent.map(e => `
+        <div class="email-mini-card" onclick="window.location.href='/gmail'">
+            <div class="email-sender">${truncate(e.sender, 30)}</div>
+            <div class="email-subject">${truncate(e.subject, 40)}</div>
+        </div>
+    `).join('');
+}
+
+function formatTime(dateStr) {
+    if (!dateStr) return '';
+    try {
+        return new Date(dateStr).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    } catch { return dateStr; }
+}
+
+function truncate(str, n) {
+    return str && str.length > n ? str.slice(0, n) + '...' : str;
+}
+</script>
+{% endblock %}
