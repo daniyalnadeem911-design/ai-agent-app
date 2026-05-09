@@ -1,12 +1,19 @@
 import os
+print("Step 1: os imported")
 from flask import Flask, session, redirect, url_for, render_template
+print("Step 2: flask imported")
 from config import Config
+print("Step 3: config imported")
 from routes.auth_routes import auth_bp
+print("Step 4: auth_routes imported")
 from routes.gmail_routes import gmail_bp
+print("Step 5: gmail_routes imported")
 from routes.calendar_routes import calendar_bp
+print("Step 6: calendar_routes imported")
 from routes.ai_routes import ai_bp
+print("Step 7: ai_routes imported")
 from database.db import get_engine
-
+print("Step 8: database imported")
 print("Starting app import...")
 
 def create_app():
