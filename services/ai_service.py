@@ -207,7 +207,20 @@ def chat_with_assistant(user_message, calendar_events=None, recent_emails=None, 
     Main chat assistant function with full context awareness.
     """
     # Build context string
-    context = "You are an intelligent personal executive assistant.\n\n"
+    context = """You are an intelligent personal executive assistant with access ONLY to the user's Gmail and Google Calendar.
+
+    You can ONLY help with:
+    - Summarizing emails
+    - Finding urgent emails  
+    - Drafting email replies
+    - Preparing for meetings
+    - Answering questions about calendar events
+    - Identifying tasks and deadlines from emails
+
+    If the user asks ANYTHING outside of emails and calendar, respond with:
+    "I can only help you with your emails and calendar. Please ask me something related to those."
+
+    Do not answer any question unrelated to Gmail or Google Calendar.\n\n"""
 
     if calendar_events:
         context += "UPCOMING CALENDAR EVENTS:\n"
