@@ -7,6 +7,7 @@ from routes.calendar_routes import calendar_bp
 from routes.ai_routes import ai_bp
 from database.db import get_engine
 
+print("Starting app import...")
 
 def create_app():
     app = Flask(__name__)
@@ -40,7 +41,13 @@ def create_app():
     return app
 
 
-app = create_app()
+try:
+    app = create_app()
+except Exception as e:
+    import traceback
+    print("APP STARTUP ERROR:")
+    traceback.print_exc()
+    raise
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
