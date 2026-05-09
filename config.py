@@ -25,4 +25,4 @@ class Config:
     ]
 
     CLIENT_SECRETS_FILE = 'client_secret.json'
-    REDIRECT_URI = 'http://localhost:5000/callback'
+    REDIRECT_URI = os.getenv('REDIRECT_URI', 'http://localhost:5000/callback')

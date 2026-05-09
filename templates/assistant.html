@@ -11,19 +11,19 @@
     <div class="chat-messages" id="chat-messages">
         <div class="chat-message assistant">
             <div class="message-bubble">
-                Hi! I'm your AI executive assistant. I have access to your emails and calendar. 
+                Hi! I'm your AI executive assistant. I have access to your emails and calendar.
                 Try asking: "Summarize today's emails", "Prepare me for my next meeting", or "What needs urgent attention?"
             </div>
         </div>
     </div>
-    
+
     <div class="chat-suggestions">
         <button class="suggestion-chip" onclick="sendSuggestion(this)">Summarize today's emails</button>
         <button class="suggestion-chip" onclick="sendSuggestion(this)">Prepare me for tomorrow's meetings</button>
         <button class="suggestion-chip" onclick="sendSuggestion(this)">What urgent tasks do I have?</button>
         <button class="suggestion-chip" onclick="sendSuggestion(this)">Which emails need replies?</button>
     </div>
-    
+
     <div class="chat-input-area">
         <input type="text" id="chat-input" placeholder="Ask your assistant..." class="chat-input">
         <button class="btn-send" onclick="sendMessage()" id="send-btn">
@@ -48,24 +48,24 @@ async function sendMessage() {
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
     if (!message) return;
-    
+
     input.value = '';
     document.getElementById('send-btn').disabled = true;
-    
+
     appendMessage('user', message);
-    
+
     const typingId = appendMessage('assistant', '<div class="typing-indicator"><span></span><span></span><span></span></div>');
-    
+
     const res = await fetch('/api/chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({message, history: chatHistory})
     });
     const data = await res.json();
-    
+
     // Remove typing indicator
     document.getElementById(typingId)?.remove();
-    
+
     if (data.success) {
         appendMessage('assistant', data.response);
         chatHistory.push({role: 'user', content: message});
@@ -75,7 +75,7 @@ async function sendMessage() {
     } else {
         appendMessage('assistant', 'Sorry, I had trouble processing that. Please try again.');
     }
-    
+
     document.getElementById('send-btn').disabled = false;
 }
 

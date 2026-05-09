@@ -1,4 +1,6 @@
 import os
+import json
+import tempfile
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -7,16 +9,30 @@ from config import Config
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# Store flow between requests
 _flow_store = {}
 
+
 def create_flow():
-    flow = Flow.from_client_secrets_file(
-        Config.CLIENT_SECRETS_FILE,
-        scopes=Config.GOOGLE_SCOPES,
-        redirect_uri=Config.REDIRECT_URI
-    )
+    client_secret_json = os.getenv('GOOGLE_CLIENT_SECRET_JSON')
+
+    if client_secret_json:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write(client_secret_json)
+            tmp_path = f.name
+        flow = Flow.from_client_secrets_file(
+            tmp_path,
+            scopes=Config.GOOGLE_SCOPES,
+            redirect_uri=Config.REDIRECT_URI
+        )
+        os.unlink(tmp_path)
+    else:
+        flow = Flow.from_client_secrets_file(
+            Config.CLIENT_SECRETS_FILE,
+            scopes=Config.GOOGLE_SCOPES,
+            redirect_uri=Config.REDIRECT_URI
+        )
     return flow
+
 
 def get_authorization_url():
     flow = create_flow()
@@ -25,18 +41,17 @@ def get_authorization_url():
         include_granted_scopes='true',
         prompt='consent'
     )
-    # Save flow object keyed by state
     _flow_store[state] = flow
     return auth_url, state
 
+
 def exchange_code_for_tokens(authorization_response_url, state):
-    # Reuse the SAME flow object that generated the URL
     flow = _flow_store.pop(state, None)
     if not flow:
-        # Fallback: create new flow (may fail with PKCE)
         flow = create_flow()
     flow.fetch_token(authorization_response=authorization_response_url)
     return flow.credentials
+
 
 def credentials_to_dict(credentials):
     return {
@@ -48,6 +63,7 @@ def credentials_to_dict(credentials):
         'scopes': credentials.scopes
     }
 
+
 def dict_to_credentials(credentials_dict):
     return Credentials(
         token=credentials_dict['token'],
@@ -58,9 +74,11 @@ def dict_to_credentials(credentials_dict):
         scopes=credentials_dict['scopes']
     )
 
+
 def get_user_info(credentials):
     service = build('oauth2', 'v2', credentials=credentials)
     return service.userinfo().get().execute()
+
 
 def refresh_credentials_if_needed(credentials):
     if credentials.expired and credentials.refresh_token:
