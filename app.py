@@ -16,18 +16,25 @@ from database.db import get_engine
 print("Step 8: database imported")
 print("Starting app import...")
 
+
 def create_app():
+    print("Creating Flask app...")
     app = Flask(__name__)
+    print("Flask app created")
     app.config.from_object(Config)
+    print("Config loaded")
 
-    # Initialize database
     get_engine()
+    print("Database initialized")
 
-    # Register blueprints
     app.register_blueprint(auth_bp)
+    print("auth_bp registered")
     app.register_blueprint(gmail_bp)
+    print("gmail_bp registered")
     app.register_blueprint(calendar_bp)
+    print("calendar_bp registered")
     app.register_blueprint(ai_bp)
+    print("ai_bp registered")
 
     @app.route('/')
     def index():
@@ -45,6 +52,7 @@ def create_app():
     def not_found(e):
         return render_template('login.html'), 404
 
+    print("App fully created")
     return app
 
 
